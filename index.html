@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Стартап — игра решений</title>
+  <meta name="description" content="Игра-симулятор основателя стартапа: свайпайте решения и держите баланс денег, команды, клиентов и инвесторов.">
+  <meta name="theme-color" content="#101014">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #101014; --panel: #1b1b22; --text: #f3f3f7; --muted: #9a9aab; --green: #4ade80; --red: #f87171; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body { margin: 0; display: flex; justify-content: center; min-height: 100dvh; overflow: hidden; background: radial-gradient(circle at 50% 0%, #2a2246, var(--bg) 65%); background-color: var(--bg); color: var(--text); font: 16px/1.45 Inter, system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    .app { display: flex; flex-direction: column; width: min(460px, 100%); height: 100dvh; padding: calc(14px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); }
+
+    .meters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .meter { display: grid; justify-items: center; gap: 6px; }
+    .meter__icon { position: relative; width: 46px; height: 62px; border-radius: 12px; background: var(--panel); overflow: hidden; display: grid; place-items: center; font-size: 22px; }
+    .meter__fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #8b5cf6, #6366f1); transition: height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .meter__icon span { position: relative; z-index: 1; }
+    .meter.low .meter__fill, .meter.high .meter__fill { background: linear-gradient(180deg, #fb7185, #e11d48); }
+    .meter small { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: transparent; transition: transform 0.2s, background 0.2s; }
+    .dot.on { background: #fff; }
+    .dot.big { transform: scale(1.6); }
+    .meter.flash .meter__icon { animation: flash 0.5s; }
+    @keyframes flash { 30% { box-shadow: 0 0 0 3px #fff; } }
+
+    .stage { position: relative; flex: 1; display: grid; place-items: center; margin: 16px 0 10px; perspective: 900px; }
+    .card { position: relative; width: min(360px, 100%); aspect-ratio: 3 / 4; max-height: 100%; display: flex; flex-direction: column; border-radius: 28px; background: linear-gradient(160deg, #26263a, #1b1b26); box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.8); touch-action: none; cursor: grab; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s; }
+    .card.drag { transition: none; cursor: grabbing; }
+    .card__who { padding: 20px 22px 0; color: var(--muted); font-size: 14px; font-weight: 600; }
+    .card__face { flex: 1; display: grid; place-items: center; font-size: clamp(80px, 26vw, 120px); filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4)); }
+    .card__text { padding: 0 22px 24px; font-size: 18px; font-weight: 600; line-height: 1.4; }
+    .choice { position: absolute; top: 18px; max-width: 60%; padding: 8px 12px; border-radius: 12px; font-weight: 700; font-size: 15px; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+    .choice--l { right: 16px; background: #fff; color: #111; transform: rotate(6deg); }
+    .choice--r { left: 16px; background: #fff; color: #111; transform: rotate(-6deg); }
+    .ghost { position: absolute; width: min(360px, 100%); aspect-ratio: 3 / 4; max-height: 100%; border-radius: 28px; background: #22222f; transform: translateY(10px) scale(0.95); }
+
+    .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .buttons button { padding: 14px 10px; border: 0; border-radius: 16px; background: var(--panel); font-weight: 700; font-size: 15px; line-height: 1.25; transition: background 0.2s; }
+    .buttons button:hover { background: #2a2a38; }
+    .footer { display: flex; justify-content: space-between; margin-top: 10px; color: var(--muted); font-size: 14px; }
+    .footer b { color: var(--text); }
+
+    .screen { position: fixed; inset: 0; z-index: 10; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center; background: rgba(16, 16, 20, 0.94); }
+    .screen[hidden] { display: none; }
+    .screen h1 { margin: 0; font: 800 clamp(34px, 9vw, 46px)/1.05 Unbounded, sans-serif; }
+    .screen .emoji { font-size: 84px; }
+    .screen p { max-width: 380px; margin: 0; color: var(--muted); font-size: 17px; }
+    .screen .stat { font: 800 22px Unbounded, sans-serif; color: var(--text); }
+    .btn { padding: 15px 30px; border: 0; border-radius: 16px; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: #fff; font-weight: 700; font-size: 17px; }
+    .rules { display: grid; gap: 6px; margin: 4px 0 8px; padding: 0; list-style: none; color: var(--muted); font-size: 15px; text-align: left; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="meters" id="meters"></div>
+    <div class="stage" id="stage">
+      <div class="ghost" aria-hidden="true"></div>
+      <article class="card" id="card">
+        <span class="choice choice--l" id="labelL"></span>
+        <span class="choice choice--r" id="labelR"></span>
+        <div class="card__who" id="who"></div>
+        <div class="card__face" id="face"></div>
+        <div class="card__text" id="text"></div>
+      </article>
+    </div>
+    <div class="buttons">
+      <button id="btnL">←</button>
+      <button id="btnR">→</button>
+    </div>
+    <div class="footer"><span>Месяц <b id="month">1</b></span><span>Рекорд: <b id="best">0</b> мес.</span></div>
+  </main>
+
+  <div class="screen" id="intro">
+    <div class="emoji">🚀</div>
+    <h1>Стартап</h1>
+    <p>Вы — основатель молодой компании. Каждый месяц к вам приходят люди с проблемами и идеями. Свайпайте решения влево или вправо.</p>
+    <ul class="rules"><li>💰 Деньги · 👥 Команда · 😊 Клиенты · 📈 Инвесторы</li><li>Шкала на нуле или переполнена — компания закрывается</li><li>Точки над шкалами подсказывают, что изменится</li></ul>
+    <button class="btn" id="startBtn">Основать компанию</button>
+  </div>
+  <div class="screen" id="over" hidden>
+    <div class="emoji" id="overEmoji"></div>
+    <h1 id="overTitle"></h1>
+    <p id="overText"></p>
+    <p class="stat" id="overStat"></p>
+    <button class="btn" id="againBtn">Новый стартап</button>
+  </div>
+
+  <script>
+    const METERS = [['m', '💰', 'Деньги'], ['t', '👥', 'Команда'], ['c', '😊', 'Клиенты'], ['i', '📈', 'Инвесторы']];
+    // Карточки: кто, лицо, текст, [надпись, эффекты] для влево и вправо
+    const CARDS = [
+      ['Аня, CTO', '👩‍💻', 'Наш сервер не выдерживает нагрузку. Купим мощнее или перепишем код?', ['Перепишем', { t: -10, c: -5 }], ['Купим', { m: -15, c: 10 }]],
+      ['Олег, продажи', '🧑‍💼', 'Крупный клиент хочет скидку 50%, иначе уйдёт к конкурентам.', ['Пусть уходит', { m: -5, c: -10 }], ['Дать скидку', { m: -10, c: 15 }]],
+      ['Инвестор', '🤵', 'Готов вложить 10 млн, но хочет 40% компании.', ['Отказать', { i: -15, t: 5 }], ['Согласиться', { m: 25, i: 15, t: -10 }]],
+      ['Команда', '👥', 'Все устали. Может, устроим корпоратив?', ['Не сейчас', { t: -15 }], ['Устроим', { t: 15, m: -10 }]],
+      ['Маркетолог', '📣', 'Давайте снимем вирусный ролик с котиками!', ['Глупость', { c: -5, t: -5 }], ['Снимаем', { m: -10, c: 15 }]],
+      ['Журналист', '📰', 'Хочу написать о вас статью. Дадите интервью?', ['Нет времени', { c: -5 }], ['Конечно', { c: 10, i: 10, t: -5 }]],
+      ['Бухгалтер', '🧮', 'Налоговая прислала требование. Нанять юриста?', ['Сами справимся', { m: 5, t: -10 }], ['Нанять', { m: -15 }]],
+      ['Аня, CTO', '👩‍💻', 'Хочу внедрить нейросеть в продукт. Это модно!', ['Не нужно', { t: -10, i: -5 }], ['Внедряем', { m: -15, i: 15, c: 5 }]],
+      ['Клиент', '😤', 'Ваше приложение удалило мои данные! Верните деньги!', ['Это не мы', { c: -15 }], ['Вернуть', { m: -10, c: 10 }]],
+      ['Конкурент', '🦈', 'Предлагаем купить вашу компанию. Дёшево.', ['Ни за что', { t: 10, i: -5 }], ['Обсудим', { m: 20, t: -20, i: 10 }]],
+      ['Стажёр Петя', '🧑‍🎓', 'Можно я буду работать из дома?', ['Нет', { t: -10 }], ['Можно', { t: 10, c: -5 }]],
+      ['Олег, продажи', '🧑‍💼', 'Давайте поднимем цены на 30%. Клиенты привыкнут.', ['Оставим', { m: -5, c: 5 }], ['Поднимаем', { m: 20, c: -15 }]],
+      ['Инвестор', '🤵', 'Мне нужен отчёт о росте. Срочно. Красивый.', ['Отправить как есть', { i: -10, t: 5 }], ['Приукрасить', { i: 15, t: -10 }]],
+      ['HR', '🧑‍🔧', 'Нашла гениального разработчика. Просит в два раза больше рынка.', ['Дорого', { t: -5 }], ['Берём', { m: -15, t: 15 }]],
+      ['Блогер', '🤳', 'Сделаю обзор за 500 тысяч. У меня 2 миллиона подписчиков.', ['Отказать', { c: -5 }], ['Заплатить', { m: -20, c: 20 }]],
+      ['Команда', '👥', 'Хотим перейти на четырёхдневку. Обещаем не снижать темп!', ['Нет', { t: -15 }], ['Пробуем', { t: 20, c: -10 }]],
+      ['Аня, CTO', '👩‍💻', 'Нашла дыру в безопасности. Остановим продукт на неделю?', ['Позже', { c: -15, i: -5 }], ['Остановим', { c: -10, t: 5, m: -5 }]],
+      ['Банк', '🏦', 'Предлагаем кредит на развитие под 25% годовых.', ['Спасибо, нет', { m: -5 }], ['Взять', { m: 25, i: -10 }]],
+      ['Клиент', '🥰', 'Обожаю ваш продукт! Можно я расскажу о вас друзьям?', ['Без рекламы', { c: -5 }], ['Дать промокод', { c: 15, m: -5 }]],
+      ['Инвестор', '🤵', 'Ходят слухи, что вы скоро закроетесь. Это правда?', ['Молчать', { i: -15 }], ['Опровергнуть', { i: 10, t: -5 }]],
+      ['Маркетолог', '📣', 'Предлагаю спонсировать киберспортивную команду.', ['Не наша аудитория', { c: -5 }], ['Спонсируем', { m: -20, c: 15, i: 5 }]],
+      ['Олег, продажи', '🧑‍💼', 'Есть госзаказ. Много денег, но много бумажек.', ['Не связываться', { m: -5 }], ['Берём', { m: 25, t: -15 }]],
+      ['Стажёр Петя', '🧑‍🎓', 'Я случайно удалил базу данных. Бэкап есть?', ['Уволить Петю', { t: -15, c: -5 }], ['Простить', { t: 10, c: -15 }]],
+      ['Конференция', '🎤', 'Приглашаем выступить на главной сцене. Билет — 300 тысяч.', ['Пропустим', { i: -5 }], ['Едем', { m: -15, i: 15, c: 5 }]],
+      ['Команда', '👥', 'Офис тесный. Переедем в лофт в центре?', ['Терпим', { t: -10 }], ['Переезжаем', { m: -20, t: 15, i: 5 }]],
+      ['Клиент', '🏢', 'Корпорация хочет купить продукт для всех сотрудников. Но надо доработать под них.', ['Не будем', { c: -5 }], ['Доработаем', { m: 20, t: -15, c: 5 }]],
+      ['Инвестор', '🤵', 'Давайте выйдем на рынок Азии. Я дам денег.', ['Рано', { i: -10 }], ['Выходим', { m: 15, i: 15, t: -15 }]],
+      ['Аня, CTO', '👩‍💻', 'Мне предложили работу в большой корпорации...', ['Удачи', { t: -20 }], ['Поднять зарплату', { m: -15, t: 10 }]],
+      ['Хакер', '🕶️', 'Я нашёл уязвимость. Заплатите — и никто не узнает.', ['Звоним в полицию', { c: -10, i: 5 }], ['Заплатить', { m: -15, c: 5 }]],
+      ['Маркетолог', '📣', 'Запускаем бесплатный тариф? Клиентов станет больше.', ['Только платно', { c: -10, m: 5 }], ['Запускаем', { c: 20, m: -15 }]],
+    ];
+    const ENDINGS = {
+      m0: ['💸', 'Деньги кончились', 'Последний рубль ушёл на кофе для команды. Компания обанкротилась.'],
+      m100: ['🛥️', 'Слишком богаты', 'Вы купили яхту и забыли о продукте. Команда ушла к конкурентам.'],
+      t0: ['🏚️', 'Все уволились', 'Однажды утром офис оказался пустым. Даже стажёр Петя ушёл.'],
+      t100: ['🎉', 'Вечный праздник', 'Команда так счастлива, что больше не работает — только пинг-понг и вечеринки.'],
+      c0: ['🦗', 'Клиенты ушли', 'В приложение больше никто не заходит. Слышно только сверчков.'],
+      c100: ['🔥', 'Сервер расплавился', 'Клиентов стало столько, что всё упало. Навсегда.'],
+      i0: ['🚪', 'Инвесторы сбежали', 'Совет директоров уволил вас из собственной компании.'],
+      i100: ['🤖', 'Компанию поглотили', 'Инвесторы продали стартап корпорации. Ваш продукт закрыли через неделю.'],
+    };
+    const $ = (id) => document.getElementById(id);
+    const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('startup_' + k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem('startup_' + k, JSON.stringify(v)); } catch {} } };
+    let vals = { m: 50, t: 50, c: 50, i: 50 }, month = 1, deck = [], card = null, best = store.get('best', 0);
+
+    $('meters').innerHTML = METERS.map(([k, icon, name]) => `<div class="meter" data-m="${k}"><span class="dot"></span><div class="meter__icon"><div class="meter__fill"></div><span>${icon}</span></div><small>${name}</small></div>`).join('');
+
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    function start() {
+      vals = { m: 50, t: 50, c: 50, i: 50 }; month = 1; deck = shuffle([...CARDS]);
+      $('intro').hidden = true; $('over').hidden = true;
+      next();
+    }
+    function next() {
+      if (!deck.length) deck = shuffle([...CARDS]);
+      card = deck.pop();
+      const [who, face, text, l, r] = card;
+      $('who').textContent = who; $('face').textContent = face; $('text').textContent = text;
+      $('labelL').textContent = l[0]; $('labelR').textContent = r[0];
+      $('btnL').textContent = '← ' + l[0]; $('btnR').textContent = r[0] + ' →';
+      const el = $('card');
+      el.style.transition = 'none'; el.style.transform = 'translateY(30px) scale(0.92)'; el.style.opacity = '0';
+      requestAnimationFrame(() => requestAnimationFrame(() => { el.style.transition = ''; el.style.transform = ''; el.style.opacity = '1'; }));
+      render();
+    }
+    function render(preview = null) {
+      document.querySelectorAll('.meter').forEach((el) => {
+        const k = el.dataset.m;
+        el.querySelector('.meter__fill').style.height = `${vals[k]}%`;
+        el.classList.toggle('low', vals[k] <= 20); el.classList.toggle('high', vals[k] >= 80);
+        const d = preview?.[k];
+        const dot = el.querySelector('.dot');
+        dot.classList.toggle('on', Boolean(d)); dot.classList.toggle('big', Math.abs(d || 0) >= 15);
+      });
+      $('month').textContent = month; $('best').textContent = best;
+    }
+    function choose(side) {
+      const effects = card[side === 'l' ? 3 : 4][1];
+      const el = $('card');
+      el.style.transform = `translateX(${side === 'l' ? -130 : 130}%) rotate(${side === 'l' ? -25 : 25}deg)`;
+      el.style.opacity = '0';
+      for (const [k, d] of Object.entries(effects)) {
+        vals[k] = Math.max(0, Math.min(100, vals[k] + d));
+        const m = document.querySelector(`.meter[data-m="${k}"]`);
+        m.classList.remove('flash'); void m.offsetWidth; m.classList.add('flash');
+      }
+      render();
+      const dead = Object.entries(vals).find(([, v]) => v <= 0 || v >= 100);
+      if (dead) return setTimeout(() => gameOver(dead[0] + (dead[1] <= 0 ? '0' : '100')), 450);
+      month++;
+      setTimeout(next, 280);
+    }
+    function gameOver(key) {
+      const [emoji, title, text] = ENDINGS[key];
+      const record = month > best;
+      if (record) { best = month; store.set('best', best); }
+      $('overEmoji').textContent = emoji; $('overTitle').textContent = title; $('overText').textContent = text;
+      $('overStat').textContent = `Компания прожила ${month} мес.${record ? ' 🏆 Рекорд!' : ''}`;
+      $('over').hidden = false;
+      render();
+    }
+
+    // Свайп карточки
+    const el = $('card');
+    let sx = 0, dx = 0, dragging = false;
+    el.addEventListener('pointerdown', (e) => { dragging = true; sx = e.clientX; dx = 0; el.classList.add('drag'); el.setPointerCapture(e.pointerId); });
+    el.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      dx = e.clientX - sx;
+      el.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+      const side = dx < -20 ? 'l' : dx > 20 ? 'r' : null;
+      $('labelL').style.opacity = side === 'l' ? Math.min(1, -dx / 90) : 0;
+      $('labelR').style.opacity = side === 'r' ? Math.min(1, dx / 90) : 0;
+      render(side ? card[side === 'l' ? 3 : 4][1] : null);
+    });
+    const end = () => {
+      if (!dragging) return;
+      dragging = false; el.classList.remove('drag');
+      $('labelL').style.opacity = 0; $('labelR').style.opacity = 0;
+      if (Math.abs(dx) > 90) choose(dx < 0 ? 'l' : 'r'); else { el.style.transform = ''; render(); }
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    $('btnL').onclick = () => choose('l');
+    $('btnR').onclick = () => choose('r');
+    ['btnL', 'btnR'].forEach((id) => {
+      $(id).addEventListener('pointerenter', () => render(card?.[id === 'btnL' ? 3 : 4][1]));
+      $(id).addEventListener('pointerleave', () => render());
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!$('intro').hidden || !$('over').hidden) { if (e.key === 'Enter') start(); return; }
+      if (e.key === 'ArrowLeft') choose('l');
+      if (e.key === 'ArrowRight') choose('r');
+    });
+    $('startBtn').onclick = start;
+    $('againBtn').onclick = start;
+    render();
+  </script>
+</body>
+</html>
